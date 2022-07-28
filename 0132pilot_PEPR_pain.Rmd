@@ -1,0 +1,899 @@
+---
+title: "PEPR Behavioral Pilots on 0132 (July 2022): Pain Intensity, Valence Ratings"
+output: html_document
+---
+
+```{r, include=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+# remove vars
+rm(list=ls(all.names=TRUE))
+
+# name libraries to load (not working)
+libs_to_load = c('ggpattern', 'ggplot2', 'ggpubr', 'palettetown', 'plyr', 
+                 'rprime', 'stringr', 'tidyverse', 'wrapr')
+
+# install and/or load libraries
+for (lib in libs_to_load) {
+  
+  # check if library already installed; if not, install
+  if(lib %in% rownames(installed.packages()) == FALSE) {install.packages(lib)}
+  
+  # load library
+  library(lib, character.only=TRUE, quietly=TRUE, verbose=FALSE)
+  
+}
+
+# cleanup
+rm(lib, libs_to_load)
+
+# create dataframe w/o data
+datum1 = data.frame()
+
+# fetch subject names from data dir
+subject_names = list.files(path='../data')
+
+# loop thru subjects (block=1-3)
+for (subject in subject_names) {
+  
+  # fetch file names from subject dir
+  file_names = list.files(path=paste0('../data/', subject, '/behav'), 
+                                      pattern='*.txt')
+  
+  # select file_names block=1-3 (block=4 is problematic; re-added later in code)
+  idx = grepl(pattern='M_[1-3]', file_names)
+  file_names = file_names[idx]
+  
+  # loop thru files
+    for (file in file_names) {
+      
+      # fetch path to data
+      tdatum_path = paste0('../data/', subject, '/behav/', file)
+      
+      # load data
+      tdatum = read_eprime(tdatum_path)
+      tdatum = FrameList(tdatum)
+      tdatum = to_data_frame(tdatum)
+      
+      # cols to keep (ie vars)
+      tdatum = as.tibble(tdatum) %>%
+        select(qc(Eprime.Basename, 
+                  TempDist, 
+                  TempProx, 
+                  ProgMedoc, 
+                  RatingIntense.Slider1.Value, 
+                  RatingIntense.Slider1.RT, 
+                  RatingValence.Slider1.Value,
+                  RatingValence.Slider1.RT,
+                  RatingIntense1.Slider1.Value,
+                  RatingIntense1.Slider1.RT,
+                  RatingValence1.Slider1.Value,
+                  RatingValence1.Slider1.RT,
+                  RatingIntense2.Slider1.Value,
+                  RatingIntense2.Slider1.RT,
+                  RatingValence2.Slider1.Value,
+                  RatingValence2.Slider1.RT))
+      
+      # rows to keep (ie trials)
+      idx = is.na(tdatum$ProgMedoc)
+      tdatum = tdatum[!idx, ]
+      
+      # combine w/ data from everyone else
+      datum1 = rbind(datum1, tdatum)
+      
+    }
+
+}
+
+# cleanup
+rm(file, file_names, idx, subject, tdatum, tdatum_path)
+
+# create dataframe w/o data
+datum2 = data.frame()
+
+# loop thru subjects (block=4)
+for (subject in subject_names) {
+  
+  # fetch file names from subject dir
+  file_names = list.files(path=paste0('../data/', subject, '/behav'), 
+                                      pattern='*.txt')
+  
+  # select file_names block=4
+  idx = grepl(pattern='M_4', file_names)
+  file_names = file_names[idx]
+  
+  # loop thru files
+    for (file in file_names) {
+      
+      # fetch path to data
+      tdatum_path = paste0('../data/', subject, '/behav/', file)
+      
+      # load data
+      tdatum = read_eprime(tdatum_path)
+      tdatum = FrameList(tdatum)
+      tdatum = to_data_frame(tdatum)
+      
+      # cols to keep (ie vars)
+      tdatum = as.tibble(tdatum) %>%
+        select(qc(Eprime.Basename, 
+                  TempDist, 
+                  TempProx, 
+                  ProgMedoc, 
+                  RatingIntense.Slider1.Value, 
+                  RatingIntense.Slider1.RT, 
+                  RatingValence.Slider1.Value,
+                  RatingValence.Slider1.RT))
+      
+      # rows to keep (ie trials)
+      idx = is.na(tdatum$ProgMedoc)
+      tdatum = tdatum[!idx, ]
+      
+      # combine w/ data from everyone else
+      datum2 = rbind(datum2, tdatum)
+      
+    }
+
+}
+
+# cleanup
+rm(file, file_names, idx, subject, subject_names, tdatum, tdatum_path)
+
+# combine intensity cols in datum1
+datum1$RatingIntense.Slider1.Value = as.numeric(datum1$RatingIntense.Slider1.Value)
+datum1$RatingIntense1.Slider1.Value = as.numeric(datum1$RatingIntense1.Slider1.Value)
+datum1$RatingIntense2.Slider1.Value = as.numeric(datum1$RatingIntense2.Slider1.Value)
+datum1$Intense_Rating = rowSums(datum1[, c('RatingIntense.Slider1.Value',
+                                           'RatingIntense1.Slider1.Value',
+                                           'RatingIntense2.Slider1.Value')], na.rm=TRUE)
+# combine valence cols in datum1
+datum1$RatingValence.Slider1.Value = as.numeric(datum1$RatingValence.Slider1.Value)
+datum1$RatingValence1.Slider1.Value = as.numeric(datum1$RatingValence1.Slider1.Value)
+datum1$RatingValence2.Slider1.Value = as.numeric(datum1$RatingValence2.Slider1.Value)
+datum1$Valence_Rating = rowSums(datum1[, c('RatingValence.Slider1.Value',
+                                           'RatingValence1.Slider1.Value',
+                                           'RatingValence2.Slider1.Value')],
+                                 na.rm=TRUE)
+
+# create cols in datum2 to match
+datum2$Intense_Rating = datum2$RatingIntense.Slider1.Value
+datum2$Valence_Rating = datum2$RatingValence.Slider1.Value
+
+# drop unwanted cols in datum1
+datum1 = datum1[, c('Eprime.Basename', 'TempDist', 'TempProx',
+                    'ProgMedoc', 'Intense_Rating', 'Valence_Rating')]
+
+# drop unwanted cols in datum2
+datum2 = datum2[, c('Eprime.Basename', 'TempDist', 'TempProx',
+                    'ProgMedoc', 'Intense_Rating', 'Valence_Rating')]
+
+# combine datums
+datum = rbind(datum1, datum2)
+
+# cleanup
+rm(datum1, datum2)
+
+# fix/create cols as needed
+datum$ID = datum$Eprime.Basename
+datum$ID = str_extract(datum$ID, '[:digit:][:digit:][:digit:]')
+datum$Label = datum$Eprime.Basename
+datum$Label = str_extract(datum$Label, '[:upper:]M')
+datum$Block = datum$Eprime.Basename
+datum$Block = str_extract(datum$Block, '[:digit:]')
+datum$Cond = NA
+datum = datum %>% mutate(Cond = case_when(
+  TempDist=='High' & TempProx=='High' ~ 'NoChange',
+  TempDist=='High' & TempProx=='Medium' ~ 'Relief',
+  TempDist=='Medium' & TempProx=='High' ~ 'Exacerbation',
+  TempDist=='Medium' & TempProx=='Medium' ~ 'NoChange',
+  TempDist=='Low' & TempProx=='Low' ~ 'NoChange',
+  TempDist=='Low' & TempProx=='Medium' ~ 'Exacerbation',
+  TempDist=='Medium' & TempProx=='Low' ~ 'Relief',
+  TempDist=='Medium' & TempProx=='Medium' ~ 'NoChange'
+  ))
+datum$Intense_Rating = as.numeric(datum$Intense_Rating)
+datum$Valence_Rating = as.numeric(datum$Valence_Rating)
+
+# set colors
+poke1 = ichooseyou(pokemon='squirtle', spread=10)
+poke2 = ichooseyou(pokemon='butterfree', spread=10)
+
+# create func to create table w/ means, st. errs.
+data_summ = function(data, varname, groupnames) {
+  
+  require(plyr)
+  summary_func = function(x, col){
+    c(mean = mean(x[[col]], na.rm=TRUE),
+      sd = sd(x[[col]], na.rm=TRUE),
+      len = length(x[[col]]),
+      se = sd(x[[col]],na.rm=TRUE)/sqrt(length(x[[col]])))
+  }
+  summary = ddply(data, groupnames, .fun=summary_func,
+                  varname)
+  return(summary)
+  
+}
+
+
+```
+\
+\
+```{r, include=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+# create firsts col
+datum$Firsts = 0
+
+# assign 1 to Firsts col when trial was first-in-block
+# at some point, make this into if-then statement
+idx1 = seq(1, nrow(datum), 10)
+for (i in idx1) {
+  
+  datum$Firsts[i] = 1
+  
+}
+
+# prev temp col
+# create col w/ NAs
+datum$PrevProgMedoc = NA
+
+# loop thru trials
+# assign val to PrevProgMedoc col based on prev trial
+for (i in (2:length(datum$ProgMedoc))) {
+  
+datum$PrevProgMedoc[i] = (datum[i-1, 'ProgMedoc'])
+
+}
+
+# edit PrevTemp col vals
+datum$PrevProgMedoc = paste0('Prev', datum$PrevProgMedoc)
+
+# prev condition col
+# create col w/ NAs
+datum$PrevCond = NA
+
+# loop thru trials
+# assign val to PrevCondition based on prev trial
+for (i in (2:length(datum$PrevCond))) {
+  
+datum$PrevCond[i] = (datum[i-1, 'Cond'])
+
+}
+
+# edit PrevCond col vals
+datum$PrevCond = paste0('Prev', datum$PrevCond)
+
+# subset data
+datum.HM = subset(datum, Label=='HM')
+datum.H = subset(datum.HM, ProgMedoc=='High')
+datum.M_H = subset(datum.HM, ProgMedoc=='Medium')
+datum.LM = subset(datum, Label=='LM')
+datum.L = subset(datum.LM, ProgMedoc=='Low')
+datum.M_L = subset(datum.LM, ProgMedoc=='Medium')
+
+# find/replace vals for plotting
+datum.H$Cond = str_replace(datum.H$Cond, 'NoChange', 'HH')
+datum.H$Cond = str_replace(datum.H$Cond, 'Exacerbation', 'MH')
+datum.M_H$Cond = str_replace(datum.M_H$Cond, 'NoChange', 'MM(H)')
+datum.M_H$Cond = str_replace(datum.M_H$Cond, 'Relief', 'HM')
+datum.L$Cond = str_replace(datum.L$Cond, 'NoChange', 'LL')
+datum.L$Cond = str_replace(datum.L$Cond, 'Relief', 'ML')
+datum.M_L$Cond = str_replace(datum.M_L$Cond, 'NoChange', 'MM(L)')
+datum.M_L$Cond = str_replace(datum.M_L$Cond, 'Exacerbation', 'LM')
+
+# combine M_H & M_L datasets
+datum.M = rbind(datum.M_H, datum.M_L)
+datum.M  = subset(datum.M, Cond=='HM' | Cond=='LM')
+
+
+```
+
+## Ratings by Block, Condition
+_Intensity_                                                \
+```{r, echo=FALSE}
+# use func to create summ stats
+table.H = data_summ(datum.H, varname='Intense_Rating',
+                  groupnames=c('Block', 'Cond'))
+table.M_H = data_summ(datum.M_H, varname='Intense_Rating',
+                  groupnames=c('Block', 'Cond'))
+table.M_L = data_summ(datum.M_L, varname='Intense_Rating',
+                  groupnames=c('Block', 'Cond'))
+table.L = data_summ(datum.L, varname='Intense_Rating',
+                  groupnames=c('Block', 'Cond'))
+table.M = data_summ(datum.M, varname='Intense_Rating',
+                  groupnames=c('Block', 'Cond'))
+
+# create plots: intensity, high heat
+table.H$Cond = factor(table.H$Cond, levels=c('HH', 'MH'))
+TL = ggplot(table.H, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(0, 8.5)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual('Trial', 
+                    values=c('gray75', poke1[6])) +
+  labs(x='Block', y='Intensity') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, low heat (context = low)
+table.L$Cond = factor(table.L$Cond, levels=c('LL', 'ML'))
+TR = ggplot(table.L, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(0, 8.5)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual('Trial', 
+                    values=c('gray75', poke1[9])) +
+  labs(x='Block', y='Intensity') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggarrange(TL, TR, ncol=1, nrow=2)
+
+# create plots: intensity, medium heat (context = high)
+table.M_H$Cond = factor(table.M_H$Cond, levels=c('MM(H)', 'HM'))
+BL = ggplot(table.M_H, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(0, 8.5)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual('Trial', 
+                    values=c('gray75', poke1[1])) +
+  labs(x='Block', y='Intensity') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, medium heat (context = low)
+table.M_L$Cond = factor(table.M_L$Cond, levels=c('MM(L)', 'LM'))
+BR = ggplot(table.M_L, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(0, 8.5)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual('Trial', 
+                    values=c('gray75', poke1[5])) +
+  labs(x='Block', y='Intensity') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create panel
+ggarrange(BL, BR, ncol=1, nrow=2)
+
+
+```
+\
+Pain intensity ratings by Condition. HH vs. MH (red): no apparent effect. LL vs. ML (yellow): no apparent effect. MM vs. HM (light green): some contrast effects as task goes on. MM vs. LH (dark green): some assimilation effects across blocks. Worth noting this is same pattern seen in 0077 pilot data.
+\
+\
+_Comparison: HM vs. LM_                                                \
+```{r, echo=FALSE}
+# create plots: intensity, low heat (context = low)
+table.M$Cond = factor(table.M$Cond, levels=c('HM', 'LM'))
+HM_v_LM.int = ggplot(table.M, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  # geom_vline(xintercept=2.5, linetype='dashed') +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual('Trial', 
+                    values=c(poke1[1], poke1[5])) +
+  labs(x='Block', y='Intensity') +
+  theme_classic() + 
+  ggtitle('HM vs. LM') +
+  theme(plot.title = element_text(hjust = 0.5))
+HM_v_LM.int
+
+
+```
+\
+Comparing HM (light green) vs. LM (dark green): context/block effect consistent across blocks. 
+\
+\
+_Valence_                                                  \
+```{r, echo=FALSE}
+# use func to create summ stats
+vtable.H = data_summ(datum.H, varname='Valence_Rating',
+                  groupnames=c('Block', 'Cond'))
+vtable.M_H = data_summ(datum.M_H, varname='Valence_Rating',
+                  groupnames=c('Block', 'Cond'))
+vtable.M_L = data_summ(datum.M_L, varname='Valence_Rating',
+                  groupnames=c('Block', 'Cond'))
+vtable.L = data_summ(datum.L, varname='Valence_Rating',
+                  groupnames=c('Block', 'Cond'))
+vtable.M = data_summ(datum.M, varname='Valence_Rating',
+                  groupnames=c('Block', 'Cond'))
+
+# create plots: valence, high heat
+vtable.H$Cond = factor(vtable.H$Cond, levels=c('HH', 'MH'))
+TL = ggplot(vtable.H, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(-5.25, 5.25)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', poke1[6])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.position='right')
+
+# create plots: valence, low heat (context = low)
+vtable.L$Cond = factor(vtable.L$Cond, levels=c('LL', 'ML'))
+TR = ggplot(vtable.L, aes(x=Block, y=mean, fill=Cond)) +
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(-5.25, 5.25)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', poke1[9])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggarrange(TL, TR, ncol=1, nrow=2)
+
+# create plots: valence, medium heat (context = high)
+vtable.M_H$Cond = factor(vtable.M_H$Cond, levels=c('MM(H)', 'HM'))
+BL = ggplot(vtable.M_H, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(-5.25, 5.25)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', poke1[1])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: valence, medium heat (context = low)
+vtable.M_L$Cond = factor(vtable.M_L$Cond, levels=c('MM(L)', 'LM'))
+BR = ggplot(vtable.M_L, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(xlim=c(1, 4), ylim=c(-5.25, 5.25)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', poke1[5])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggarrange(BL, BR, ncol=1, nrow=2)
+
+
+```
+\
+Pain valence ratings by Condition. HH vs. MH (red): no apparent effect. LL vs. ML (yellow): no apparent effect. MM vs. HM (light green): no apparent effect. MM vs. LH (dark green): hedonic flip in 3-of-4 blocks.
+\
+\
+_Comparison: HM vs. LM_                                                  \
+```{r, echo=FALSE}
+# create plots: intensity, low heat (context = low)
+vtable.M$Cond = factor(vtable.M$Cond, levels=c('HM', 'LM'))
+HM_v_LM.val = ggplot(vtable.M, aes(x=Block, y=mean, fill=Cond)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  # geom_vline(xintercept=2.5, linetype='dashed') +
+  coord_cartesian(ylim=c(-5.25, 5.25)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual('Trial', 
+                    values=c(poke1[1], poke1[5])) +
+  labs(x='Block', y='Valence') +
+  theme_classic() + 
+  ggtitle('HM vs. LM') +
+  theme(plot.title = element_text(hjust = 0.5))
+HM_v_LM.val
+
+
+```
+\
+Comparing HM (light green) vs. LM (dark green): no apparent effect. 
+\
+\
+
+## Ratings by Condition, Prev. Temp.
+_Intensity_                                               \
+```{r, echo=FALSE}
+# use function to create summary stats
+table.H2 = data_summ(subset(datum.H, Firsts=='0'), 
+                     varname='Intense_Rating',
+                     groupnames=c('Cond',
+                                  'PrevProgMedoc'))
+table.H2$Concat = paste(table.H2$Cond,
+                        table.H2$PrevProgMedoc)
+
+table.M_H2 = data_summ(subset(datum.M_H, Firsts=='0'), 
+                       varname='Intense_Rating',
+                       groupnames=c('Cond',
+                                    'PrevProgMedoc'))
+table.M_H2$Concat = paste(table.M_H2$Cond,
+                          table.M_H2$PrevProgMedoc)
+
+table.M_L2 = data_summ(subset(datum.M_L, Firsts=='0'), 
+                       varname='Intense_Rating',
+                       groupnames=c('Cond',
+                                    'PrevProgMedoc'))
+table.M_L2$Concat = paste(table.M_L2$Cond, 
+                          table.M_L2$PrevProgMedoc)
+
+table.L2 = data_summ(subset(datum.L, Firsts=='0'), 
+                     varname='Intense_Rating',
+                     groupnames=c('Cond',
+                                  'PrevProgMedoc'))
+table.L2$Concat = paste(table.L2$Cond, 
+                        table.L2$PrevProgMedoc)
+
+# create plots: intensity, high heat
+table.H2$Concat = factor(table.H2$Concat, 
+                             levels=c('HH PrevMedium', 'HH PrevHigh',
+                                      'MH PrevMedium', 'MH PrevHigh'))
+TL = ggplot(table.H2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[6], poke1[6])) +
+  labs(x='Condition', y='Intensity') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, med heat (in context of high)
+table.M_H2$Concat = factor(table.M_H2$Concat, 
+                             levels=c('MM(H) PrevMedium', 'MM(H) PrevHigh',
+                                      'HM PrevMedium', 'HM PrevHigh'))
+BL = ggplot(table.M_H2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[1], poke1[1])) +
+  labs(x='Condition', y='Intensity') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, med heat (in context of high)
+table.M_L2$Concat = factor(table.M_L2$Concat, 
+                             levels=c('MM(L) PrevLow', 'MM(L) PrevMedium',
+                                      'LM PrevLow', 'LM PrevMedium'))
+BR = ggplot(table.M_L2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[1], poke1[1])) +
+  labs(x='Condition', y='Intensity') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, med heat (in context of high)
+table.L2$Concat = factor(table.L2$Concat, 
+                             levels=c('LL PrevLow', 'LL PrevMedium',
+                                      'ML PrevLow', 'ML PrevMedium'))
+TR = ggplot(table.L2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[9], poke1[9])) +
+  labs(x='Condition', y='Intensity') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create panel
+ggarrange(TL, TR, BL, BR, ncol=2, nrow=2)
+
+
+```
+\
+Pain intensity ratings by Condition, Prev. Temp (columns are lower-to-greater from left-to-right). HH vs. MH (red): no apparent effect. LL vs. ML (yellow): no apparent effect. MM vs. HM (light green): no apparent effect. MM vs. LH (dark green): no apparent effect.
+\
+\
+_Valence_                                               \
+```{r, echo=FALSE}
+# use function to create summary stats
+vtable.H2 = data_summ(subset(datum.H, Firsts=='0'), 
+                     varname='Valence_Rating',
+                     groupnames=c('Cond',
+                                  'PrevProgMedoc'))
+vtable.H2$Concat = paste(table.H2$Cond, 
+                        table.H2$PrevProgMedoc)
+
+vtable.M_H2 = data_summ(subset(datum.M_H, Firsts=='0'), 
+                       varname='Valence_Rating',
+                       groupnames=c('Cond',
+                                    'PrevProgMedoc'))
+vtable.M_H2$Concat = paste(table.M_H2$Cond, 
+                          table.M_H2$PrevProgMedoc)
+
+vtable.M_L2 = data_summ(subset(datum.M_L, Firsts=='0'), 
+                       varname='Valence_Rating',
+                       groupnames=c('Cond',
+                                    'PrevProgMedoc'))
+vtable.M_L2$Concat = paste(table.M_L2$Cond, 
+                          table.M_L2$PrevProgMedoc)
+
+vtable.L2 = data_summ(subset(datum.L, Firsts=='0'), 
+                     varname='Valence_Rating',
+                     groupnames=c('Cond',
+                                  'PrevProgMedoc'))
+vtable.L2$Concat = paste(table.L2$Cond, 
+                        table.L2$PrevProgMedoc)
+
+# create plots: intensity, high heat
+vtable.H2$Concat = factor(vtable.H2$Concat, 
+                             levels=c('HH PrevMedium', 'HH PrevHigh',
+                                      'MH PrevMedium', 'MH PrevHigh'))
+TL = ggplot(vtable.H2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(-5.25, 5.25)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[6], poke1[6])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, med heat (in context of high)
+vtable.M_H2$Concat = factor(vtable.M_H2$Concat, 
+                             levels=c('MM(H) PrevMedium', 'MM(H) PrevHigh',
+                                      'HM PrevMedium', 'HM PrevHigh'))
+BL = ggplot(vtable.M_H2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(-5.25, 5.25)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[1], poke1[1])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, med heat (in context of high)
+vtable.M_L2$Concat = factor(vtable.M_L2$Concat, 
+                             levels=c('MM(L) PrevLow', 'MM(L) PrevMedium',
+                                      'LM PrevLow', 'LM PrevMedium'))
+BR = ggplot(vtable.M_L2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(-5.25, 5.25)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[1], poke1[1])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create plots: intensity, med heat (in context of high)
+table.L2$Concat = factor(table.L2$Concat, 
+                             levels=c('LL PrevLow', 'LL PrevMedium',
+                                      'ML PrevLow', 'ML PrevMedium'))
+TR = ggplot(table.L2, aes(x=Cond, y=mean, fill=Concat)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=FALSE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  coord_cartesian(ylim=c(-5.25, 5.25)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(-5:5)) +
+  scale_fill_manual(values=c('gray75', 'gray75', poke1[9], poke1[9])) +
+  labs(x='Condition', y='Valence') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# create panel
+ggarrange(TL, TR, BL, BR, ncol=2, nrow=2)
+
+
+```
+\
+Pain valence ratings by Condition, Prev. Temp (columns are lower-to-greater from left-to-right). HH vs. MH (red): no apparent effect. LL vs. ML (yellow): no apparent effect. MM vs. HM (light green): no apparent effect. MM vs. LH (dark green): no apparent effect.
+\
+\
+
+## Ratings from HM/LM Conditions by Prev. Condition
+_Intensity_                                                \
+```{r, echo=FALSE}
+# create summary tables to create figs
+table.M_H3 = data_summ(subset(datum.M_H, Firsts=='0'), 
+                       varname='Intense_Rating',
+                       groupnames=c('Cond',
+                                    'PrevProgMedoc',
+                                    'PrevCond'))
+table.M_H3$Concat = paste(table.M_H3$Cond, 
+                          table.M_H3$PrevProgMedoc,
+                          table.M_H3$PrevCond)
+
+table.M_L3 = data_summ(subset(datum.M_L, Firsts=='0'), 
+                           varname='Intense_Rating',
+                           groupnames=c('Cond',
+                                        'PrevProgMedoc',
+                                        'PrevCond'))
+table.M_L3$Concat = paste(table.M_L3$Cond, 
+                          table.M_L3$PrevProgMedoc,
+                          table.M_L3$PrevCond)
+
+# subset tables
+table.M_H3.sub = subset(table.M_H3, 
+                        Concat=='HM PrevHigh PrevNoChange' |
+                         Concat=='HM PrevMedium PrevRelief' |
+                          Concat=='HM PrevMedium PrevNoChange')
+
+table.M_L3.sub = subset(table.M_L3, 
+                        Concat=='LM PrevLow PrevNoChange' |
+                         Concat=='LM PrevMedium PrevExacerbation' |
+                          Concat=='LM PrevMedium PrevNoChange')
+
+# create new cols for plotting
+table.M_H3.sub$Condition = table.M_H3.sub$Concat
+table.M_L3.sub$Condition = table.M_L3.sub$Concat
+
+
+# find/replace vals for plotting
+table.M_H3.sub$Condition = str_replace(table.M_H3.sub$Condition, 'HM PrevHigh PrevNoChange', 'HH-HM')
+table.M_H3.sub$Condition = str_replace(table.M_H3.sub$Condition, 'HM PrevMedium PrevRelief', 'HM-HM')
+table.M_H3.sub$Condition = str_replace(table.M_H3.sub$Condition, 'HM PrevMedium PrevNoChange', 'MM-HM')
+table.M_L3.sub$Condition = str_replace(table.M_L3.sub$Condition, 'LM PrevLow PrevNoChange', 'LL-LM')
+table.M_L3.sub$Condition = str_replace(table.M_L3.sub$Condition, 'LM PrevMedium PrevExacerbation', 'LM-LM')
+table.M_L3.sub$Condition = str_replace(table.M_L3.sub$Condition, 'LM PrevMedium PrevNoChange', 'MM-LM')
+
+# create plots: HH-HM vs. HM-HM
+table.M_H3.sub$Condition = factor(table.M_H3.sub$Condition,
+                               levels=c('HH-HM',
+                                        'HM-HM',
+                                        'MM-HM'))
+
+TM = ggplot(table.M_H3.sub, aes(x=Condition, y=mean, fill=Condition)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  # geom_vline(xintercept=2.5, linetype='dashed') +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual(values=c(poke2[1], poke2[6], poke2[2])) +
+  labs(x='Condition', y='Intensity') +
+  theme_classic() + 
+  ggtitle('High/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.position='none')
+
+# create plots: LL-LM vs. LM-LM
+table.M_L3.sub$Condition = factor(table.M_L3.sub$Condition,
+                               levels=c('LL-LM',
+                                        'LM-LM',
+                                        'MM-LM'))
+BM = ggplot(table.M_L3.sub, aes(x=Condition, y=mean, fill=Condition)) + 
+  geom_bar(stat='identity', position='dodge',
+           show.legend=TRUE) +
+  geom_text(aes(label=round(mean, 2)), vjust=-0.3, size=3.5,
+            position=position_dodge(width=1)) +
+  geom_errorbar(aes(ymin=mean-se, 
+                    ymax=mean+se),
+                width=.2, position=position_dodge(.9)) +
+  # geom_vline(xintercept=2.5, linetype='dashed') +
+  coord_cartesian(ylim=c(0, 8.5)) +
+  # scale_x_continuous(breaks=c(1:6)) +
+  scale_y_continuous(breaks=c(0:8)) +
+  scale_fill_manual(values=c(poke2[3], poke2[9], poke2[10])) +
+  labs(x='Condition', y='Intensity') +
+  theme_classic() + 
+  ggtitle('Low/Medium Blocks') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.position='none')
+
+# create panel
+ggarrange(TM, BM, ncol=1, nrow=2)
+
+
+```
+\
+Difference between MM-LM vs. LL-LM suggests peripheral sensitization. However, no difference between MM-HM vs. HH-HM suggests this is restricted to low and medium temperatures.
+\
+\
